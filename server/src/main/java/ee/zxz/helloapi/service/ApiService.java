@@ -22,7 +22,7 @@ public interface ApiService {
     Map<String, Object> searchApiList(Map<String, String> requestParam);
 
     // 获取API应用详情
-    Map<String, Object> getApiApp(String apiId);
+    Map<String, Object> getApiApp(String apiId ,String authorizationHeader);
 
     // 创建API密钥
     Map<String, Object> createApiKey(String finalApiID, Map<String, Object> requestBody, HttpServletRequest request);

@@ -279,14 +279,28 @@ public class ApiServiceImpl implements ApiService {
     }
 
     @Override
-    public Map<String, Object> getApiApp(String apiId) {
+    public Map<String, Object> getApiApp(String apiId, String authorizationHeader) {
         int intApiId = Tools.strToInt(apiId);
         ApiApp apiApp = apiMapper.getApiApp(intApiId);
         if (apiApp == null) {
             return ResponseUtil.response(400, Finals.MESSAGES_ERROR_API_NOT_FOUND);
         }
-        List<ApiParam> apiParams = apiMapper.getApiParam(intApiId);
         Map<String, Object> map = new LinkedHashMap<>();
+
+        // 验证接口是否处于非过审 或 隐藏状态，如果是的话验证访问者是否是作者或管理员，否则返回空内容
+        if (apiApp.getStatus() == 3 || apiApp.getView_status() != 0) {
+            int userId = Tools.tokenToUserId(authorizationHeader);
+            int userMode = Tools.tokenToUserMode(authorizationHeader);
+            if (userId < 1 || apiApp.getUser_id() != userId) {
+                if (userMode != Finals.Admin) {
+                    map.put("status", apiApp.getStatus());
+                    map.put("view_status", apiApp.getView_status());
+                    return ResponseUtil.success(map);
+                }
+            }
+        }
+
+        List<ApiParam> apiParams = apiMapper.getApiParam(intApiId);
         List<Object> paramList = new ArrayList<>();
         map.put("id", apiApp.getId());
         map.put("title", apiApp.getTitle());

@@ -54,9 +54,9 @@ public class ApiController {
 
     // GetApiApp - 获取Api接口详情 - GET
     @GetMapping({"/{apiId}", "/"})
-    public Map<String, Object> GetApiApp(@PathVariable(required = false) String apiId) {
+    public Map<String, Object> GetApiApp(@PathVariable(required = false) String apiId,@RequestHeader(value = "Authorization", required = false) String authorizationHeader) {
         String finalApiID = (apiId == null) ? "0" : apiId;
-        return apiService.getApiApp(finalApiID);
+        return apiService.getApiApp(finalApiID,authorizationHeader);
     }
 
     // CreateApiKey - 创建API密钥 - POST

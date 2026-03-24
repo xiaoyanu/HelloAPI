@@ -398,7 +398,14 @@ onMounted(() => {
       <el-table :data="tableData" class="w-full" v-loading="loading">
         <el-table-column label="Api ID">
           <template #default="{row}">
+            <el-link
+                :href="'/info/' + row.api_id"
+                target="_blank"
+                type="primary"
+                underline="never"
+            >
             {{ row.api_id }}
+            </el-link>
           </template>
         </el-table-column>
         <el-table-column label="APIKey" minWidth="160">
