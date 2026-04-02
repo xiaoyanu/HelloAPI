@@ -14,7 +14,7 @@
     /*src: url(https://npm.webcache.cn/helloapi_assets@latest/fonts/HarmonyOS_Sans_SC_Medium.subset.woff2) format("truetype");*/
     /*src: url(https://npm.onmicrosoft.cn/helloapi_assets@latest/fonts/HarmonyOS_Sans_SC_Medium.subset.woff2) format("truetype");*/
     /*src: url(https://cdn.bili33.top/npm/helloapi_assets@latest/fonts/HarmonyOS_Sans_SC_Medium.subset.woff2) format("truetype");*/
-    src: url(@/assets/fonts/HarmonyOS_Sans_SC_Medium.subset.woff2) format("truetype");
+    src: url(@/assets/fonts/HarmonyOS_Sans_SC_Medium.subset.woff2) format("woff2");
     font-display: swap;
 }
 
