@@ -5,15 +5,15 @@
     font-family: "HarmonyOS_Sans_SC_Medium";
     /*
         提供以下CDN加速地址，均为国内CDN，当然你也可以选择本地字体文件
-        字体文件大小：580 KB，如果你不在意大小，直接使用本地字体文件即可
+        字体文件大小：965 KB，如果你不在意大小，直接使用本地字体文件即可
     */
-    /*src: url(https://npm.elemecdn.com/helloapi_assets@0.0.1/fonts/HarmonyOS_Sans_SC_Medium.subset.woff2) format("truetype");*/
-    /*src: url(https://cdn.jsdmirror.cn/npm/helloapi_assets@0.0.1/fonts/HarmonyOS_Sans_SC_Medium.subset.woff2) format("truetype");*/
-    /*src: url(https://s4.zstatic.net/npm/helloapi_assets@0.0.1/fonts/HarmonyOS_Sans_SC_Medium.subset.woff2) format("truetype");*/
-    /*src: url(https://cdn.jsdelivr.net/npm/helloapi_assets@0.0.1/fonts/HarmonyOS_Sans_SC_Medium.subset.woff2) format("truetype");*/
-    /*src: url(https://npm.webcache.cn/helloapi_assets@0.0.1/fonts/HarmonyOS_Sans_SC_Medium.subset.woff2) format("truetype");*/
-    /*src: url(https://npm.onmicrosoft.cn/helloapi_assets@0.0.1/fonts/HarmonyOS_Sans_SC_Medium.subset.woff2) format("truetype");*/
-    /*src: url(https://cdn.bili33.top/npm/helloapi_assets@0.0.1/fonts/HarmonyOS_Sans_SC_Medium.subset.woff2) format("truetype");*/
+    /*src: url(https://npm.elemecdn.com/helloapi_assets@latest/fonts/HarmonyOS_Sans_SC_Medium.subset.woff2) format("truetype");*/
+    /*src: url(https://cdn.jsdmirror.cn/npm/helloapi_assets@latest/fonts/HarmonyOS_Sans_SC_Medium.subset.woff2) format("truetype");*/
+    /*src: url(https://s4.zstatic.net/npm/helloapi_assets@latest/fonts/HarmonyOS_Sans_SC_Medium.subset.woff2) format("truetype");*/
+    /*src: url(https://cdn.jsdelivr.net/npm/helloapi_assets@latest/fonts/HarmonyOS_Sans_SC_Medium.subset.woff2) format("truetype");*/
+    /*src: url(https://npm.webcache.cn/helloapi_assets@latest/fonts/HarmonyOS_Sans_SC_Medium.subset.woff2) format("truetype");*/
+    /*src: url(https://npm.onmicrosoft.cn/helloapi_assets@latest/fonts/HarmonyOS_Sans_SC_Medium.subset.woff2) format("truetype");*/
+    /*src: url(https://cdn.bili33.top/npm/helloapi_assets@latest/fonts/HarmonyOS_Sans_SC_Medium.subset.woff2) format("truetype");*/
     src: url(@/assets/fonts/HarmonyOS_Sans_SC_Medium.subset.woff2) format("truetype");
     font-display: swap;
 }
