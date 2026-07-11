@@ -293,6 +293,9 @@ public class UserServiceImpl implements UserService {
                         apiMapper.deleteApiParamAll(apiApp.getId());
                         // 删除APIlog
                         statMapper.deleteApiLog(apiApp.getId());
+                        // 删除API统计
+                        statMapper.deleteApiCount(apiApp.getId());
+                        statMapper.deleteApiDailyStats(apiApp.getId());
                         // 删除API应用
                         apiMapper.deleteApiApp(apiApp.getId());
                     }

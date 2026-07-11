@@ -3,7 +3,7 @@ package ee.zxz.helloapi.domain.DTO;
 
 public class ApiTodayArray {
     private String name;
-    private Integer count;
+    private Long count;
 
     public String getName() {
         return name;
@@ -13,11 +13,11 @@ public class ApiTodayArray {
         this.name = name;
     }
 
-    public Integer getCount() {
+    public Long getCount() {
         return count;
     }
 
-    public void setCount(Integer count) {
+    public void setCount(Long count) {
         this.count = count;
     }
 }

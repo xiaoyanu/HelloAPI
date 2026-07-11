@@ -1,6 +1,7 @@
 import request from '@/utils/module/request'
+import type {StatDashboardResponse} from '@/types'
 
 const apiUrl = '/api/v1/stat'
 
-// 获取指定类型数据
-export const GetStat = (type: string): any => request.post(apiUrl + '/', {type})
+// 一次获取统计页面所需的全部聚合数据
+export const GetStatDashboard = () => request.get<StatDashboardResponse>(apiUrl + '/dashboard')

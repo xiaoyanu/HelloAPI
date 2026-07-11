@@ -1,5 +1,7 @@
 package ee.zxz.helloapi.controller;
 
+import ee.zxz.helloapi.annotation.RequiresLogin;
+import ee.zxz.helloapi.service.StatDashboardService;
 import ee.zxz.helloapi.service.StatService;
 import ee.zxz.helloapi.utils.Finals;
 import jakarta.servlet.http.HttpServletRequest;
@@ -11,9 +13,15 @@ import java.util.Map;
 @RequestMapping(Finals.statUrl)
 public class StatController {
     private final StatService statService;
+    private final StatDashboardService statDashboardService;
 
-    public StatController(StatService statService) {
+    /**
+     * @param statService          日志记录服务
+     * @param statDashboardService Dashboard 聚合查询服务
+     */
+    public StatController(StatService statService, StatDashboardService statDashboardService) {
         this.statService = statService;
+        this.statDashboardService = statDashboardService;
     }
 
     // LogApi - 记录API日志/消耗等 - POST
@@ -22,9 +30,24 @@ public class StatController {
         return statService.logApi(requestBody, request);
     }
 
-    // Post - 获取指定类型数据 - POST
-    @PostMapping("/")
-    public Map<String, Object> GetStat(@RequestParam(required = false) Map<String, String> requestParam, @RequestBody(required = false) Map<String, String> requestBody, HttpServletRequest request, @RequestHeader(value = "Authorization", required = false) String authorizationHeader) {
-        return statService.getStat(requestParam, requestBody, request, authorizationHeader);
+    /**
+     * 一次获取管理后台统计页所需的全部数据。
+     *
+     * @return 统一成功响应，data 为缓存后的 Dashboard 聚合结果
+     */
+    @GetMapping("/dashboard")
+    @RequiresLogin
+    public Map<String, Object> getDashboard() {
+        return ee.zxz.helloapi.utils.ResponseUtil.success(statDashboardService.getDashboard());
+    }
+
+    /**
+     * 获取系统累计 API 调用次数，供公开计数图片使用。
+     */
+    @GetMapping("/count")
+    public Map<String, Object> getApiAllCount() {
+        return ee.zxz.helloapi.utils.ResponseUtil.success(
+                Map.of("count", statDashboardService.getApiAllCount())
+        );
     }
 }

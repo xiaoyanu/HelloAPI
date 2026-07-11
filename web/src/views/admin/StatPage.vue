@@ -5,7 +5,7 @@ import {
   PhUserCirclePlus, PhColumnsPlusRight, PhColumns
 } from "@phosphor-icons/vue";
 import {formatNumber} from "@/utils";
-import {GetStat} from "@/api";
+import {GetStatDashboard} from "@/api";
 import CountTo from "@/components/CountTo.vue";
 
 // 异步按需加载图表组件
@@ -21,46 +21,28 @@ const data = ref({
   apiTodayCount: {count: 0, change: 0},
   apiWeekCount: {count: 0, change: 0},
   array: {
-    apiWeekCount: {date: [], count: []},
-    apiTodayCount: {name: [], count: []}
+    apiWeekCount: {date: [] as string[], count: [] as number[]},
+    apiTodayCount: {name: [] as string[], count: [] as number[]}
   }
 });
 
 const getCardData = async () => {
-  const [
-    getApiAppMonthCountRes, apiAppCountRes, userRegisterRes, userRes, monthRes, allRes, todayRes, weekRes, weekArrRes, todayArrRes
-  ] = await Promise.all([
-    GetStat('getApiAppMonthCount'),
-    GetStat('getApiAppCount'),
-    GetStat('userMonthRegisterCount'),
-    GetStat('userCount'),
-    GetStat('apiMonthCount'),
-    GetStat('apiAllCount'),
-    GetStat('apiTodayCount'),
-    GetStat('apiWeekCount'),
-    GetStat('apiWeekCountArray'),
-    GetStat('apiTodayCountArray')
-  ]);
+  const res = await GetStatDashboard();
+  if (res.data.code !== 200) return;
 
-  // 赋值基础统计数据
-  if (getApiAppMonthCountRes.data.code === 200) data.value.apiAppMonthCount = getApiAppMonthCountRes.data.data;
-  if (apiAppCountRes.data.code === 200) data.value.apiAppCount = apiAppCountRes.data.data;
-  if (userRegisterRes.data.code === 200) data.value.userMonthRegisterCount = userRegisterRes.data.data;
-  if (userRes.data.code === 200) data.value.userCount = userRes.data.data;
-  if (monthRes.data.code === 200) data.value.apiMonthCount = monthRes.data.data;
-  if (allRes.data.code === 200) data.value.apiAllCount = allRes.data.data;
-  if (todayRes.data.code === 200) data.value.apiTodayCount = todayRes.data.data;
-  if (weekRes.data.code === 200) data.value.apiWeekCount = weekRes.data.data;
-
-  if (weekArrRes.data.code === 200) {
-    data.value.array.apiWeekCount.date = weekArrRes.data.data.map((item: any) => item.date.slice(5, 10));
-    data.value.array.apiWeekCount.count = weekArrRes.data.data.map((item: any) => item.count);
-  }
-
-  if (todayArrRes.data.code === 200) {
-    data.value.array.apiTodayCount.name = todayArrRes.data.data.map((item: any) => item.name);
-    data.value.array.apiTodayCount.count = todayArrRes.data.data.map((item: any) => item.count);
-  }
+  const dashboard = res.data.data;
+  data.value.apiAppMonthCount = dashboard.apiAppMonthCount;
+  data.value.apiAppCount = dashboard.apiAppCount;
+  data.value.userMonthRegisterCount = dashboard.userMonthRegisterCount;
+  data.value.userCount = dashboard.userCount;
+  data.value.apiMonthCount = dashboard.apiMonthCount;
+  data.value.apiAllCount = dashboard.apiAllCount;
+  data.value.apiTodayCount = dashboard.apiTodayCount;
+  data.value.apiWeekCount = dashboard.apiWeekCount;
+  data.value.array.apiWeekCount.date = dashboard.apiWeekCountArray.map(item => item.date.slice(5, 10));
+  data.value.array.apiWeekCount.count = dashboard.apiWeekCountArray.map(item => item.count);
+  data.value.array.apiTodayCount.name = dashboard.apiTodayCountArray.map(item => item.name);
+  data.value.array.apiTodayCount.count = dashboard.apiTodayCountArray.map(item => item.count);
 };
 
 const chart1Options = computed(() => ({

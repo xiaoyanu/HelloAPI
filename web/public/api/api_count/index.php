@@ -3,29 +3,27 @@ header("Content-Type: image/svg+xml; charset=utf-8");
 $curl = curl_init();
 
 curl_setopt_array($curl, array(
-  // 这里填写你自己的后端地址，格式为：域名+/api/v1/stat/
-  CURLOPT_URL => 'https://api.zxz.ee/service/api/v1/stat/',
+  // 这里填写你自己的后端地址，格式为：域名+/api/v1/stat/count
+  CURLOPT_URL => 'https://api.zxz.ee/service/api/v1/stat/count',
   CURLOPT_RETURNTRANSFER => true,
   CURLOPT_ENCODING => '',
   CURLOPT_MAXREDIRS => 10,
-  CURLOPT_TIMEOUT => 0,
+  CURLOPT_TIMEOUT => 5,
   CURLOPT_FOLLOWLOCATION => true,
   CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
-  CURLOPT_CUSTOMREQUEST => 'POST',
-  CURLOPT_POSTFIELDS => '{
-  "type": "apiAllCount"
-}',
-  CURLOPT_HTTPHEADER => array(
-    'Content-Type: application/json',
-  ),
+  CURLOPT_CUSTOMREQUEST => 'GET',
 ));
 curl_setopt($curl, CURLOPT_SSL_VERIFYPEER, false);
 curl_setopt($curl, CURLOPT_SSL_VERIFYHOST, false);
 
-$num = json_decode(curl_exec($curl),true)['data']['count'];
+$response = json_decode(curl_exec($curl), true);
+
+$num = isset($response['data']['count']) ? (string)$response['data']['count'] : '0';
+$img = '';
+$x = 0;
 
 $lang = strlen($num);
-for ($i = 0, $x = 0; $i < $lang; $i++) {
+for ($i = 0; $i < $lang; $i++) {
   $img = $img . '<image x="' . $x . '" y="0" width="45" height="100" xlink:href="' . asoul(substr($num, $i, 1)) . '" />';
   $x = $x + 45;
 }

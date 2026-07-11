@@ -3,6 +3,7 @@ package ee.zxz.helloapi.config;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.scheduling.annotation.EnableAsync;
+import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 
 import java.util.concurrent.Executor;
@@ -10,6 +11,8 @@ import java.util.concurrent.ThreadPoolExecutor;
 
 @Configuration
 @EnableAsync
+// 启用每日统计的定时增量聚合任务。
+@EnableScheduling
 public class AsyncConfig {
 
     @Bean("logExecutor") // 给线程池起个名字，方便指定
