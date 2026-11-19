@@ -1,0 +1,20 @@
+server:
+  # HTTP 监听端口
+  port: 8080
+
+database:
+  host: localhost
+  port: 3306
+  name: api
+  username: root
+  # 可通过 HELLOAPI_DB_PASSWORD 覆盖
+  password: "123456"
+
+jwt:
+  # 留空时每次启动生成新密钥，重启后原令牌失效
+  secret: ""
+
+stat:
+  # 首次聚合延迟和每轮聚合结束后的等待时间，单位为毫秒
+  initial-delay-ms: 10000
+  fixed-delay-ms: 10000
