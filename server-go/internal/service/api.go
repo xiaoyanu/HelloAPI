@@ -17,6 +17,7 @@ import (
 	"github.com/zxz/helloapi/internal/auth"
 	"github.com/zxz/helloapi/internal/httpx"
 	"github.com/zxz/helloapi/internal/model"
+	"github.com/zxz/helloapi/internal/repo"
 )
 
 type APIRepository interface {
@@ -25,14 +26,8 @@ type APIRepository interface {
 	SearchAPIList(ctx context.Context, keyword string, pageSize int, offset int) ([]model.APIApp, error)
 	SearchAPIListCount(ctx context.Context, keyword string) (int64, error)
 	GetAPIParam(ctx context.Context, apiID int) ([]model.APIParam, error)
-	CreateAPIApp(ctx context.Context, apiApp *model.APIApp) (int64, error)
-	CreateAPIParam(ctx context.Context, apiParam *model.APIParam) (int64, error)
 	CheckAPIExist(ctx context.Context, apiID int) (int64, error)
 	CheckAPICreator(ctx context.Context, apiID int, userID int) (int64, error)
-	UpdateAPIApp(ctx context.Context, apiApp *model.APIApp) (int64, error)
-	UpdateAPIParam(ctx context.Context, apiParam *model.APIParam) (int64, error)
-	CheckAPIParamExistObj(ctx context.Context, apiParam *model.APIParam) (int64, error)
-	DeleteAPIParamAll(ctx context.Context, apiID int) error
 	GetAPIApp(ctx context.Context, apiID int) (*model.APIApp, error)
 	CreateAPIKey(ctx context.Context, apiID int, key string, kind int, started *model.LocalDateTime, expired *model.LocalDateTime, count int64, desc *string) error
 	CheckAPIKeyExist(ctx context.Context, key string) (int64, error)
@@ -48,7 +43,11 @@ type APIRepository interface {
 	CheckUserIDExists(ctx context.Context, userID int) (int64, error)
 	settingReader
 	DeleteAPIData(context.Context, int) error
+	WriteAPIInTx(context.Context, func(repo.APIWriter) error) error
 }
+
+// errAPIParamRejected 表示某条参数未写入成功，用于触发事务回滚。
+var errAPIParamRejected = errors.New("API 参数写入失败")
 
 type API struct {
 	repo APIRepository
@@ -130,21 +129,26 @@ func (s *API) CreateAPI(ctx context.Context, body map[string]any) (response http
 		return httpx.Reply(400, msg), nil
 	}
 
-	affected, err := s.repo.CreateAPIApp(ctx, &app)
-	if err != nil {
-		return httpx.Response{}, err
-	}
-	if affected > 0 {
+	// 主记录与参数在同一事务中写入，任一步失败整体回滚（由 paramOnError 转为参数错误响应）。
+	err = s.repo.WriteAPIInTx(ctx, func(tx repo.APIWriter) error {
+		affected, err := tx.CreateAPIApp(ctx, &app)
+		if err != nil || affected < 1 {
+			return err
+		}
 		for _, param := range params {
 			param.APIID = app.ID
-			affected, err := s.repo.CreateAPIParam(ctx, &param)
+			affected, err := tx.CreateAPIParam(ctx, &param)
 			if err != nil {
-				return httpx.Response{}, err
+				return err
 			}
 			if affected < 1 {
-				return paramError(), nil
+				return errAPIParamRejected
 			}
 		}
+		return nil
+	})
+	if err != nil {
+		return httpx.Response{}, err
 	}
 	return httpx.Success(), nil
 }
@@ -203,32 +207,37 @@ func (s *API) UpdateAPI(ctx context.Context, id string, body map[string]any) (re
 	if msg != "" {
 		return httpx.Reply(400, msg), nil
 	}
-	if err := s.repo.DeleteAPIParamAll(ctx, apiID); err != nil {
-		return httpx.Response{}, err
-	}
-	affected, err := s.repo.UpdateAPIApp(ctx, &app)
-	if err != nil {
-		return httpx.Response{}, err
-	}
-	if affected > 0 {
+	// 删除旧参数、更新主记录、写入新参数在同一事务中完成，失败时旧数据保持不变。
+	err = s.repo.WriteAPIInTx(ctx, func(tx repo.APIWriter) error {
+		if err := tx.DeleteAPIParamAll(ctx, apiID); err != nil {
+			return err
+		}
+		affected, err := tx.UpdateAPIApp(ctx, &app)
+		if err != nil || affected < 1 {
+			return err
+		}
 		for _, param := range params {
 			param.APIID = apiID
-			count, err := s.repo.CheckAPIParamExistObj(ctx, &param)
+			count, err := tx.CheckAPIParamExistObj(ctx, &param)
 			if err != nil {
-				return httpx.Response{}, err
+				return err
 			}
 			if count > 0 {
-				affected, err = s.repo.UpdateAPIParam(ctx, &param)
+				affected, err = tx.UpdateAPIParam(ctx, &param)
 			} else {
-				affected, err = s.repo.CreateAPIParam(ctx, &param)
+				affected, err = tx.CreateAPIParam(ctx, &param)
 			}
 			if err != nil {
-				return httpx.Response{}, err
+				return err
 			}
 			if affected < 1 {
-				return paramError(), nil
+				return errAPIParamRejected
 			}
 		}
+		return nil
+	})
+	if err != nil {
+		return httpx.Response{}, err
 	}
 	return httpx.Success(), nil
 }

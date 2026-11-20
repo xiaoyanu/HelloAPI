@@ -19,6 +19,11 @@ func User(ctx context.Context) Identity {
 	return identity
 }
 
+// WithUser 返回携带登录身份的 context，供鉴权中间件与测试使用。
+func WithUser(ctx context.Context, identity Identity) context.Context {
+	return context.WithValue(ctx, identityKey{}, identity)
+}
+
 func RequireLogin(jwt *auth.JWT) func(http.Handler) http.Handler {
 	return require(jwt, nil)
 }
@@ -54,7 +59,7 @@ func require(jwt *auth.JWT, users AdminChecker) func(http.Handler) http.Handler 
 					claims.Mode = Admin
 				}
 			}
-			ctx := context.WithValue(r.Context(), identityKey{}, Identity{ID: claims.ID, Mode: claims.Mode})
+			ctx := WithUser(r.Context(), Identity{ID: claims.ID, Mode: claims.Mode})
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}

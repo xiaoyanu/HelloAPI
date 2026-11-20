@@ -25,7 +25,7 @@ type UserRepository interface {
 	GetUserAPIListSearchCount(ctx context.Context, userID int, keyword string, kind int, status int, viewStatus int) (int64, error)
 	UpdateUserNick(ctx context.Context, userID int, nick string) error
 	UpdateUserMail(ctx context.Context, userID int, mail string) error
-	UpdateUserPassword(ctx context.Context, userID int, oldPassword string, newPassword string) error
+	UpdateUserPassword(ctx context.Context, userID int, oldPassword string, newPassword string) (int64, error)
 	SetUserPassword(ctx context.Context, userID int, password string) error
 	GetUserList(ctx context.Context, pageSize int, offset int) ([]model.User, error)
 	GetUserListSearch(ctx context.Context, keyword string, mode int, pageSize int, offset int) ([]model.User, error)
@@ -367,11 +367,25 @@ func (s *User) UpdateUserPassword(ctx context.Context, query, body map[string]st
 	if err != nil || rejection.Code != 0 {
 		return rejection, err
 	}
+	if trim(body["oldPassword"]) == "" {
+		return httpx.Reply(400, "旧密码不能为空"), nil
+	}
+	if rejection := validateNewPassword(body["newPassword"]); rejection.Code != 0 {
+		return rejection, nil
+	}
 	oldPassword, newPassword := md5Text(body["oldPassword"]), md5Text(body["newPassword"])
 	if oldPassword == newPassword {
 		return httpx.Reply(400, "新旧密码相同"), nil
 	}
-	return httpx.Success(), s.repo.UpdateUserPassword(ctx, userID, oldPassword, newPassword)
+	// 旧密码作为 WHERE 条件；未更新任何行说明旧密码不匹配（新旧密码已确保不同，不会因值未变而返回 0）。
+	updated, err := s.repo.UpdateUserPassword(ctx, userID, oldPassword, newPassword)
+	if err != nil {
+		return httpx.Response{}, err
+	}
+	if updated == 0 {
+		return httpx.Reply(400, "旧密码错误"), nil
+	}
+	return httpx.Success(), nil
 }
 
 func (s *User) SetUserPassword(ctx context.Context, query, body map[string]string) (httpx.Response, error) {
@@ -389,10 +403,26 @@ func (s *User) SetUserPassword(ctx context.Context, query, body map[string]strin
 	if !present {
 		return httpx.Response{}, errors.New("缺少设置密码字段")
 	}
-	if password == "" {
-		return httpx.Reply(400, "密码不能为空"), nil
+	if rejection := validateNewPassword(password); rejection.Code != 0 {
+		return rejection, nil
 	}
 	return httpx.Success(), s.repo.SetUserPassword(ctx, userID, md5Text(password))
+}
+
+// validateNewPassword 校验即将写入的新密码，规则与登录一致，避免设置后无法登录。
+// 通过时返回 Code 为 0 的空响应。
+func validateNewPassword(password string) httpx.Response {
+	switch {
+	case trim(password) == "":
+		return httpx.Reply(400, "密码不能为空")
+	case strings.Contains(password, " "):
+		return httpx.Reply(400, "密码不能包含空格")
+	case textLength(password) < 6:
+		return httpx.Reply(400, "密码不能少于6个字符")
+	case textLength(password) > 64:
+		return httpx.Reply(400, "密码不能超过64个字符")
+	}
+	return httpx.Response{}
 }
 
 func (s *User) verifyAdmin(ctx context.Context) (httpx.Response, error) {

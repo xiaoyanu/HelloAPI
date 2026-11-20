@@ -101,9 +101,9 @@ func (s *Store) UpdateUserMail(ctx context.Context, userID int, mail string) err
 	return execute(ctx, s.query, query, mail, userID)
 }
 
-func (s *Store) UpdateUserPassword(ctx context.Context, userID int, oldPassword string, newPassword string) error {
+func (s *Store) UpdateUserPassword(ctx context.Context, userID int, oldPassword string, newPassword string) (int64, error) {
 	const query = "UPDATE `helloapi_users` SET `password` = ? WHERE `id` = ? AND `password`=?"
-	return execute(ctx, s.query, query, newPassword, userID, oldPassword)
+	return affected(ctx, s.query, query, newPassword, userID, oldPassword)
 }
 
 func (s *Store) SetUserPassword(ctx context.Context, userID int, password string) error {

@@ -188,3 +188,18 @@ func (s *Store) DeleteAPIData(ctx context.Context, apiID int) error {
 		return nil
 	})
 }
+
+// APIWriter 是创建/更新 API 时需要在同一事务内执行的写操作集合。
+type APIWriter interface {
+	CreateAPIApp(context.Context, *model.APIApp) (int64, error)
+	CreateAPIParam(context.Context, *model.APIParam) (int64, error)
+	UpdateAPIApp(context.Context, *model.APIApp) (int64, error)
+	UpdateAPIParam(context.Context, *model.APIParam) (int64, error)
+	CheckAPIParamExistObj(context.Context, *model.APIParam) (int64, error)
+	DeleteAPIParamAll(context.Context, int) error
+}
+
+// WriteAPIInTx 在单个事务中执行 fn；fn 返回错误时整体回滚，避免留下主记录与参数不一致的数据。
+func (s *Store) WriteAPIInTx(ctx context.Context, fn func(APIWriter) error) error {
+	return s.inTx(ctx, func(tx *Store) error { return fn(tx) })
+}
