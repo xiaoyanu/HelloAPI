@@ -5,7 +5,7 @@ import (
 )
 
 func TestVersionOrder(t *testing.T) {
-	for _, pair := range [][2]string{{"1", "1.1"}, {"1.1", "1.2"}, {"1.2", "1.10"}, {"1.10", "2"}} {
+	for _, pair := range [][2]string{{"1", "1.1"}, {"1.1", "1.2"}, {"1.2", "1.3"}, {"1.3", "1.10"}, {"1.10", "2"}} {
 		if compareVersion(pair[0], pair[1]) >= 0 {
 			t.Fatalf("版本顺序错误：%v", pair)
 		}
@@ -23,7 +23,7 @@ func TestFlywayChecksum(t *testing.T) {
 		}
 	}
 	scripts, err := embeddedScripts()
-	if err != nil || len(scripts) < 3 || scripts[0].version != "1" {
+	if err != nil || len(scripts) < 4 || scripts[0].version != "1" || scripts[3].version != "1.3" {
 		t.Fatalf("内嵌迁移 = %d，错误 = %v", len(scripts), err)
 	}
 	// 对照 Java Flyway 在 MySQL 5.7 实际写入的历史记录。

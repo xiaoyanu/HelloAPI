@@ -25,14 +25,19 @@ go build -o helloapi.exe ./cmd/helloapi
 | `jwt.secret` | 空值，每次启动生成随机密钥 | `HELLOAPI_JWT_SECRET` |
 | `stat.initial-delay-ms` | `10000` | `HELLOAPI_STAT_INITIAL_DELAY_MS` |
 | `stat.fixed-delay-ms` | `10000` | `HELLOAPI_STAT_FIXED_DELAY_MS` |
+| `stat.log-retention-days` | `90` | `HELLOAPI_STAT_LOG_RETENTION_DAYS` |
+| `stat.log-cleanup-interval-ms` | `3600000` | `HELLOAPI_STAT_LOG_CLEANUP_INTERVAL_MS` |
+| `stat.log-payload-max-bytes` | `2048` | `HELLOAPI_STAT_LOG_PAYLOAD_MAX_BYTES` |
 
 MySQL 连接使用 `charset=utf8mb4`、`parseTime=true`、`loc=Local`。统计调度到达初始延迟后每轮清空积压，再等待固定间隔。按 Ctrl+C 停止后台任务并等待 HTTP 请求结束。
+
+原始调用日志保留天数须为非负整数，设为 `0` 时永久保留。清理在启动 1 分钟后开始，每轮之间的等待时间须为正。header 和 body 各自按原始字节数应用上限。非法 JSON 写入 NULL，超限的合法 JSON 替换为 `{"truncated":true,"size":N}`，其中 N 是原始字节数。上限设为 `0` 时写入 NULL，设为 `-1` 时不限大小。
 
 ## 数据库迁移
 
 启动时用独立的 MySQL 连接获取 `GET_LOCK('helloapi_migrate', 60)`，执行内嵌在 `internal/migrate/sql/` 中的脚本。只有迁移连接启用多语句。
 
-- 空库按版本执行 V1、V1.1 和 V1.2。
+- 空库按版本执行 V1、V1.1、V1.2 和 V1.3。
 - 非空库没有 `flyway_schema_history` 时建立版本 1 基线，再执行更新的脚本。版本 1 的基础表需已存在。
 - 已有 Flyway 历史时跳过已执行版本。校验和不一致时记录告警。任一历史记录的 `success=0` 会阻止启动。
 - 以原始脚本逐行计算 Flyway CRC32。结构变更应新增 `V<版本>__<描述>.sql`，已有脚本保留原样。
@@ -122,7 +127,31 @@ MySQL 连接使用 `charset=utf8mb4`、`parseTime=true`、`loc=Local`。统计�
 | GET | `/api/v1/stat/dashboard` | 登录 | `getDashboard` | `GetDashboard` |
 | GET | `/api/v1/stat/count` | 公开 | `getApiAllCount` | `GetAPIAllCount` |
 
+`GET /api/v1/stat/dashboard` 的 `apiDailyCountArray` 返回近 90 天（含 MySQL 当前日期）的每日调用量，按日期升序排列，缺失日期补 0。每项包含 `date`（如 `2026-11-20T00:00:00`）和 `count`。`apiWeekCountArray` 保留相同格式，取日数组的最后 7 项。
+
 Java 静态资源 `GET /Logo.psd` 也随二进制提供。
+
+## 调用日志瘦身与空间回收
+
+V1.3 将原始调用日志表的索引精简为主键和 `idx_api_id`。升级后，首次清理按主键窗口分批删除超过保留期且已聚合的日志。每批独立提交，批间暂停 100 毫秒，清理期间服务继续运行。配置文件中未写这些新配置项时按默认值生效，即升级后会自动开始按 90 天清理；如需保留全部历史日志，请在升级前将 `stat.log-retention-days` 设为 `0`。
+
+2026-11-20 线上备份（约 2519 万行，`.ibd` 4.18 GB）在 MySQL 5.7.44 副本上的实测结果：
+
+| 步骤 | 耗时 | 结果 |
+| --- | --- | --- |
+| V1.3 删除 4 个二级索引 | 73 ms | 仅剩主键与 `idx_api_id`，释放的页可在表空间内复用 |
+| 首次清理（90 天保留期） | 约 4 分钟（共删除 908 万行，约 3.7 万行/秒） | 剩余 1611 万行；数据 1033 MB，索引 295 MB；聚合表不变 |
+| `OPTIMIZE TABLE` | 53 秒 | `.ibd` 从 4.18 GB 降至 1.57 GB |
+
+以上实测使用 `innodb_flush_log_at_trx_commit=2`、1 GB 缓冲池、无 binlog，生产环境（双一、开启 binlog）耗时会更长，请以此为下限估算。
+
+InnoDB 执行 `DELETE` 或删除二级索引后，可在表空间内复用释放的页面。`.ibd` 文件大小需通过表重建回收。首次清理完成后，可在低峰期手动执行以下命令。
+
+```sql
+OPTIMIZE TABLE helloapi_api_request_logs;
+```
+
+MySQL 5.7 对该 InnoDB 表执行在线重建。回收独立表空间要求开启 `innodb_file_per_table` 并确认该表使用独立表空间。数据目录需预留约等于剩余表数据和索引大小的重建空间，并检查临时目录的排序文件空间。参见 [MySQL 5.7 OPTIMIZE TABLE](https://docs.oracle.com/cd/E17952_01/mysql-5.7-en/optimize-table.html) 和 [在线 DDL 空间需求](https://docs.oracle.com/cd/E17952_01/mysql-5.7-en/innodb-online-ddl-space-requirements.html)。
 
 ## 验证
 

@@ -34,13 +34,13 @@ pnpm type-check   # 仅类型检查
 
 ## 配置
 
-- 后端：`config.yaml`（模板 `server/config.example.yaml`），查找顺序为 `-config` 参数 → 可执行文件同级目录 → 当前目录；`HELLOAPI_DB_PASSWORD`、`HELLOAPI_PORT` 等环境变量可覆盖（完整列表见 `server/README.md`）。统计聚合调度间隔由 `stat.initial-delay-ms` / `stat.fixed-delay-ms` 控制（默认 10 秒）。
+- 后端：`config.yaml`（模板 `server/config.example.yaml`），查找顺序为 `-config` 参数 → 可执行文件同级目录 → 当前目录；`HELLOAPI_DB_PASSWORD`、`HELLOAPI_PORT` 等环境变量可覆盖（完整列表见 `server/README.md`）。统计聚合调度间隔由 `stat.initial-delay-ms` / `stat.fixed-delay-ms` 控制（默认 10 秒）。`stat.log-retention-days` 默认保留原始日志 90 天，设为 0 时关闭清理。清理轮次间隔由 `stat.log-cleanup-interval-ms` 控制（默认 1 小时）。`stat.log-payload-max-bytes` 默认限制 header 和 body 各 2048 字节，0 表示不保存，-1 表示不限。
 - 前端：`web/src/config/config.ts`（`serverURL` 后端地址、分页大小、水印、页脚，以及 `folder_paths` / `file_paths`——放行给非 SPA 资源的路径，否则会被前端 404 路由拦截）。
 - 生产环境 Nginx 需要 `try_files $uri $uri/ /index.html;` 伪静态。
 
 ## 后端架构
 
-模块名 `github.com/zxz/helloapi`，入口 `cmd/helloapi/main.go`（加载配置 → 连库 → 迁移 → 启动验证码清理与统计调度 → HTTP，支持优雅退出）。分层为 `internal/handler`（路由与参数提取）→ `internal/service`（业务）→ `internal/repo`（SQL），service 依赖 repo 的接口以便测试替换。
+模块名 `github.com/zxz/helloapi`，入口 `cmd/helloapi/main.go`（加载配置 → 连库 → 迁移 → 启动验证码清理、统计聚合与日志清理 → HTTP，支持优雅退出）。分层为 `internal/handler`（路由与参数提取）→ `internal/service`（业务）→ `internal/repo`（SQL），service 依赖 repo 的接口以便测试替换。
 
 - **统一响应**：`internal/httpx` 的 `Reply`/`Success` 构造 `{code, msg, data}`（data 为 nil 时省略，nil 切片输出为 `[]`）。业务错误码放在 JSON 的 `code` 字段（401 = 需重新登录，403 = 非管理员，400 = 参数错误等），HTTP 状态码通常仍是 200。提示文案常量与 URL 前缀（`/api/v1/user|app|stat|link|setting`）也在 `httpx` 中。
 - **接口契约必须与前端保持兼容**：JSON 字段名沿用原 Java 版（如 `smallTitle`、`user_id`、`view_status`），日期时间用 `model.LocalDateTime` 输出不带时区的 `2006-01-02T15:04:05`。请求体用 `httpx.StringMap` 宽松解析（数字/布尔转为字符串，对应原 Jackson 行为），或用 `httpx.ObjectMap` 保留 `json.Number`。
@@ -50,10 +50,11 @@ pnpm type-check   # 仅类型检查
 - **数据库**：DSN 开启 `clientFoundRows`（UPDATE 返回匹配行数，与 JDBC 一致，业务依赖这一点判断是否命中）；`repo.New` 对 sqlx 启用 `Unsafe`，使 `select *` 忽略多余列。多步写操作用 `Store.inTx` 包在事务中（如创建/更新 API、删除 API/用户、统计聚合）。不要使用 MySQL 8 专有语法。
 - **数据库迁移**：`internal/migrate` 是自写的 Flyway 兼容迁移器，脚本在 `internal/migrate/sql/`（`V1__`、`V1.1__`、`V1.2__` …，`embed` 打包），读写 `flyway_schema_history` 并按 Flyway 算法计算校验和。表名统一前缀 `helloapi_`。修改表结构时新增版本化脚本，不要改动已有脚本。
 - **调用统计链路**：
-  1. 外部被管理的 API 调用 `POST /api/v1/stat/log` 上报；`service/stat.go` 校验用户密钥与 API Key（时间型校验过期；次数型用 `count > 0` 条件原子扣减）后写入原始日志表 `helloapi_api_request_logs`。
+  1. 外部被管理的 API 调用 `POST /api/v1/stat/log` 上报。`service/stat.go` 校验用户密钥与 API Key（时间型校验过期，次数型用 `count > 0` 条件原子扣减）后写入原始日志表 `helloapi_api_request_logs`。header 和 body 独立校验 JSON，非法值写 NULL，超限的合法值写 `{"truncated":true,"size":N}`，其中 N 是原始字节数。
   2. `internal/stat/scheduler.go` 定时调用 `service.Aggregation#AggregateNextBatch`，基于 `helloapi_stat_checkpoint` 的 `last_log_id` 每批最多 5000 条增量聚合到 `helloapi_api_daily_stats`（每日）和 `helloapi_api_views`（累计），三者在同一事务内更新，并用 `FOR UPDATE` 行锁防止多实例重复统计。
-  3. `service/stat_dashboard.go` 只读聚合表，提供 `GET /api/v1/stat/dashboard`（管理后台）和 `GET /api/v1/stat/count`（公开累计次数），结果在进程内缓存 30 秒。
-  4. 删除 API 或用户时需同步清理相关聚合数据。
+  3. `service/stat_dashboard.go` 从聚合表读取调用量，提供 `GET /api/v1/stat/dashboard`（管理后台）和 `GET /api/v1/stat/count`（公开累计次数），结果在进程内缓存 30 秒。看板的 `apiDailyCountArray` 以 MySQL 当前日期为准返回包含当天的 90 天日趋势，按日期升序并补零。`apiWeekCountArray` 取最后 7 天。
+  4. `internal/stat/cleanup.go` 调度过期日志清理，按不超过已提交统计检查点的主键窗口分批删除。清理仅处理原始日志，截止日以 MySQL 当前日期为准。
+  5. 删除 API 或用户时需同步清理相关聚合数据。
 - **测试**：均为纯单元测试（fake 实现 repo 接口，不连数据库）。`scripts/smoke` 是需要真实 MySQL 与人工输入验证码的端到端冒烟脚本，用法见 `server/README.md`。
 
 ## 前端架构

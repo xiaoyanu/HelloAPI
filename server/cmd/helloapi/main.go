@@ -68,7 +68,8 @@ func run(ctx context.Context, configPath string, logger *slog.Logger) error {
 	jwt := auth.New(cfg.JWT.Secret)
 	sessions := captcha.New()
 	router := handler.New(service.NewUser(store, jwt), service.NewAPI(store, jwt), service.NewLink(store),
-		service.NewSetting(store), service.NewStat(store), service.NewDashboard(store), sessions, jwt, store)
+		service.NewSetting(store), service.NewStat(store, cfg.Stat.LogPayloadMaxBytes),
+		service.NewDashboard(store), sessions, jwt, store)
 	server := &http.Server{
 		Addr: fmt.Sprintf(":%d", cfg.Server.Port), Handler: router,
 		ReadHeaderTimeout: 5 * time.Second, IdleTimeout: 60 * time.Second,
@@ -85,6 +86,12 @@ func run(ctx context.Context, configPath string, logger *slog.Logger) error {
 		stat.Run(workCtx, service.NewAggregation(store),
 			time.Duration(cfg.Stat.InitialDelayMS)*time.Millisecond, time.Duration(cfg.Stat.FixedDelayMS)*time.Millisecond, logger)
 	})
+	if cfg.Stat.LogRetentionDays > 0 {
+		workers.Go(func() {
+			stat.RunCleanup(workCtx, service.NewLogCleanup(store, cfg.Stat.LogRetentionDays),
+				time.Minute, time.Duration(cfg.Stat.LogCleanupIntervalMS)*time.Millisecond, 100*time.Millisecond, logger)
+		})
+	}
 	defer func() {
 		stopWorkers()
 		workers.Wait()

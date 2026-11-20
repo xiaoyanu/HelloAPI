@@ -18,3 +18,9 @@ stat:
   # 首次聚合延迟和每轮聚合结束后的等待时间，单位为毫秒
   initial-delay-ms: 10000
   fixed-delay-ms: 10000
+  # 原始日志保留天数，0 表示永久保留
+  log-retention-days: 90
+  # 每轮过期日志清理结束后的等待时间，单位为毫秒
+  log-cleanup-interval-ms: 3600000
+  # header、body 各自的字节上限，0 表示不保存，-1 表示不限
+  log-payload-max-bytes: 2048

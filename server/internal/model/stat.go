@@ -42,5 +42,6 @@ type StatDashboard struct {
 	APIWeekCount           StatValue       `json:"apiWeekCount"`
 	APIMonthCount          StatValue       `json:"apiMonthCount"`
 	APIWeekCountArray      []APIWeekArray  `json:"apiWeekCountArray"`
+	APIDailyCountArray     []APIWeekArray  `json:"apiDailyCountArray"`
 	APITodayCountArray     []APITodayArray `json:"apiTodayCountArray"`
 }

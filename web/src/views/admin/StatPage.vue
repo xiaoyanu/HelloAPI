@@ -1,15 +1,21 @@
 <script setup lang="ts">
-import {defineAsyncComponent, onMounted, onUnmounted, ref, computed} from "vue";
+import {defineAsyncComponent, onMounted, onUnmounted, ref, shallowRef, computed} from "vue";
 import {
   PhChartBar, PhArrowBendRightDown, PhArrowBendLeftUp, PhCalendar, PhCalendarDot, PhCalendarDots, PhUsers,
   PhUserCirclePlus, PhColumnsPlusRight, PhColumns
 } from "@phosphor-icons/vue";
 import {formatNumber} from "@/utils";
 import {GetStatDashboard} from "@/api";
+import type {ApiWeekCountItem} from "@/types";
 import CountTo from "@/components/CountTo.vue";
 
 // 异步按需加载图表组件
 const BaseChart = defineAsyncComponent(() => import('@/components/BaseChart.vue'));
+
+const trendDays = ref<7 | 15 | 30 | 90>(7);
+const trendOptions = ([7, 15, 30, 90] as const).map(value => ({label: `${value} 天`, value}));
+const dailyTrend = shallowRef<ApiWeekCountItem[]>([]);
+const visibleTrend = computed(() => dailyTrend.value.slice(-trendDays.value));
 
 const data = ref({
   userCount: {count: 0, change: 0},
@@ -21,7 +27,6 @@ const data = ref({
   apiTodayCount: {count: 0, change: 0},
   apiWeekCount: {count: 0, change: 0},
   array: {
-    apiWeekCount: {date: [] as string[], count: [] as number[]},
     apiTodayCount: {name: [] as string[], count: [] as number[]}
   }
 });
@@ -39,8 +44,8 @@ const getCardData = async () => {
   data.value.apiAllCount = dashboard.apiAllCount;
   data.value.apiTodayCount = dashboard.apiTodayCount;
   data.value.apiWeekCount = dashboard.apiWeekCount;
-  data.value.array.apiWeekCount.date = dashboard.apiWeekCountArray.map(item => item.date.slice(5, 10));
-  data.value.array.apiWeekCount.count = dashboard.apiWeekCountArray.map(item => item.count);
+  // 兼容尚未升级的后端：没有 90 天数组时退回近 7 天数据
+  dailyTrend.value = dashboard.apiDailyCountArray ?? dashboard.apiWeekCountArray ?? [];
   data.value.array.apiTodayCount.name = dashboard.apiTodayCountArray.map(item => item.name);
   data.value.array.apiTodayCount.count = dashboard.apiTodayCountArray.map(item => item.count);
 };
@@ -57,7 +62,7 @@ const chart1Options = computed(() => ({
   xAxis: {
     type: 'category',
     boundaryGap: false,
-    data: data.value.array.apiWeekCount.date,
+    data: visibleTrend.value.map(item => item.date.slice(5, 10)),
     axisLine: {show: false},
     axisTick: {show: false},
     axisLabel: {color: '#909399', margin: 15}
@@ -74,8 +79,8 @@ const chart1Options = computed(() => ({
       smooth: true,
       symbol: 'circle',
       symbolSize: 8,
-      showSymbol: true,
-      data: data.value.array.apiWeekCount.count,
+      showSymbol: trendDays.value !== 90,
+      data: visibleTrend.value.map(item => item.count),
       itemStyle: {color: '#409EFF', borderWidth: 2, borderColor: '#fff'},
       lineStyle: {width: 3, color: '#409EFF'},
       areaStyle: {
@@ -88,7 +93,7 @@ const chart1Options = computed(() => ({
         }
       },
       label: {
-        show: true,
+        show: trendDays.value <= 15,
         position: 'top',
         color: '#1f2d3d',
         fontWeight: 'bold',
@@ -291,7 +296,10 @@ onUnmounted(() => {
 
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-5">
       <div class="chart-card overflow-hidden">
-        <div class="chart-header">近7天调用统计</div>
+        <div class="chart-header flex flex-wrap items-center justify-between gap-2">
+          <span class="whitespace-nowrap">近{{ trendDays }}天调用统计</span>
+          <el-segmented v-model="trendDays" :options="trendOptions" size="small" aria-label="调用趋势时间范围"/>
+        </div>
         <BaseChart :options="chart1Options" class="w-full h-75"/>
       </div>
       <div class="chart-card overflow-hidden">

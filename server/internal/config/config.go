@@ -22,8 +22,11 @@ type Config struct {
 		Secret string `yaml:"secret"`
 	} `yaml:"jwt"`
 	Stat struct {
-		InitialDelayMS int `yaml:"initial-delay-ms"`
-		FixedDelayMS   int `yaml:"fixed-delay-ms"`
+		InitialDelayMS       int `yaml:"initial-delay-ms"`
+		FixedDelayMS         int `yaml:"fixed-delay-ms"`
+		LogRetentionDays     int `yaml:"log-retention-days"`
+		LogCleanupIntervalMS int `yaml:"log-cleanup-interval-ms"`
+		LogPayloadMaxBytes   int `yaml:"log-payload-max-bytes"`
 	} `yaml:"stat"`
 }
 
@@ -57,6 +60,9 @@ func Load(explicitPath string) (Config, error) {
 	cfg.Database = Database{Host: "localhost", Port: 3306, Name: "api", Username: "root", Password: "123456"}
 	cfg.Stat.InitialDelayMS = 10000
 	cfg.Stat.FixedDelayMS = 10000
+	cfg.Stat.LogRetentionDays = 90
+	cfg.Stat.LogCleanupIntervalMS = 3600000
+	cfg.Stat.LogPayloadMaxBytes = 2048
 
 	var paths []string
 	if explicitPath != "" {
@@ -92,10 +98,13 @@ func Load(explicitPath string) (Config, error) {
 		}
 	}
 	for name, target := range map[string]*int{
-		"HELLOAPI_PORT":                  &cfg.Server.Port,
-		"HELLOAPI_DB_PORT":               &cfg.Database.Port,
-		"HELLOAPI_STAT_INITIAL_DELAY_MS": &cfg.Stat.InitialDelayMS,
-		"HELLOAPI_STAT_FIXED_DELAY_MS":   &cfg.Stat.FixedDelayMS,
+		"HELLOAPI_PORT":                         &cfg.Server.Port,
+		"HELLOAPI_DB_PORT":                      &cfg.Database.Port,
+		"HELLOAPI_STAT_INITIAL_DELAY_MS":        &cfg.Stat.InitialDelayMS,
+		"HELLOAPI_STAT_FIXED_DELAY_MS":          &cfg.Stat.FixedDelayMS,
+		"HELLOAPI_STAT_LOG_RETENTION_DAYS":      &cfg.Stat.LogRetentionDays,
+		"HELLOAPI_STAT_LOG_CLEANUP_INTERVAL_MS": &cfg.Stat.LogCleanupIntervalMS,
+		"HELLOAPI_STAT_LOG_PAYLOAD_MAX_BYTES":   &cfg.Stat.LogPayloadMaxBytes,
 	} {
 		if raw, ok := os.LookupEnv(name); ok {
 			value, err := strconv.Atoi(raw)
@@ -111,6 +120,15 @@ func Load(explicitPath string) (Config, error) {
 	const maxDelayMS = int64((1<<63 - 1) / time.Millisecond)
 	if cfg.Stat.InitialDelayMS < 0 || int64(cfg.Stat.InitialDelayMS) > maxDelayMS || cfg.Stat.FixedDelayMS < 1 || int64(cfg.Stat.FixedDelayMS) > maxDelayMS {
 		return cfg, errors.New("统计调度初始延迟必须非负，固定间隔必须为正，且两者须在可表示范围内")
+	}
+	if cfg.Stat.LogRetentionDays < 0 {
+		return cfg, errors.New("stat.log-retention-days 必须为非负整数")
+	}
+	if cfg.Stat.LogCleanupIntervalMS < 1 || int64(cfg.Stat.LogCleanupIntervalMS) > maxDelayMS {
+		return cfg, errors.New("stat.log-cleanup-interval-ms 必须为可表示为时长的正整数")
+	}
+	if cfg.Stat.LogPayloadMaxBytes < -1 {
+		return cfg, errors.New("stat.log-payload-max-bytes 必须大于等于 -1")
 	}
 	return cfg, nil
 }

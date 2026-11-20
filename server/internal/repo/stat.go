@@ -2,6 +2,8 @@ package repo
 
 import (
 	"context"
+	"time"
+
 	"github.com/zxz/helloapi/internal/model"
 )
 
@@ -44,13 +46,42 @@ func (s *Store) GetAPIUsageSummary(ctx context.Context) (*model.APIUsageSummary,
 	return getRow[model.APIUsageSummary](ctx, s.query, query)
 }
 
-func (s *Store) GetAPIWeekCountArrayFromDaily(ctx context.Context) ([]model.APIWeekArray, error) {
-	const query = "SELECT CAST(Days.Date AS DATETIME) AS date, COALESCE(SUM(s.call_count), 0) AS count FROM (SELECT CURDATE()" +
-		" - INTERVAL 6 DAY AS Date UNION ALL SELECT CURDATE() - INTERVAL 5 DAY UNION ALL SELECT CURDATE() -" +
-		" INTERVAL 4 DAY UNION ALL SELECT CURDATE() - INTERVAL 3 DAY UNION ALL SELECT CURDATE() - INTERVAL 2 DAY" +
-		" UNION ALL SELECT CURDATE() - INTERVAL 1 DAY UNION ALL SELECT CURDATE()) AS Days LEFT JOIN" +
-		" `helloapi_api_daily_stats` s ON s.stat_date = Days.Date GROUP BY Days.Date ORDER BY Days.Date"
-	return selectRows[model.APIWeekArray](ctx, s.query, query)
+type dailyCountRow struct {
+	Date  string `db:"date"`
+	Count int64  `db:"count"`
+}
+
+func (s *Store) GetAPIDailyCountArray(ctx context.Context, days int) ([]model.APIWeekArray, error) {
+	// 日期按文本读取，避免驱动把 MySQL 的日历日期解释为 Go 本地时区的时刻。
+	date, err := scalar[string](ctx, s.query, "SELECT CAST(CURDATE() AS CHAR)")
+	if err != nil {
+		return nil, err
+	}
+	today, err := time.Parse(time.DateOnly, date)
+	if err != nil {
+		return nil, err
+	}
+	first := today.AddDate(0, 0, 1-days)
+	const query = "SELECT CAST(stat_date AS CHAR) AS date, SUM(call_count) AS count FROM helloapi_api_daily_stats" +
+		" WHERE stat_date >= ? AND stat_date <= ? GROUP BY stat_date"
+	rows, err := selectRows[dailyCountRow](ctx, s.query, query, first.Format(time.DateOnly), date)
+	if err != nil {
+		return nil, err
+	}
+	return fillDailyCounts(today, days, rows), nil
+}
+
+func fillDailyCounts(today time.Time, days int, rows []dailyCountRow) []model.APIWeekArray {
+	counts := make(map[string]int64, len(rows))
+	for _, row := range rows {
+		counts[row.Date] = row.Count
+	}
+	result := make([]model.APIWeekArray, days)
+	for i := range result {
+		date := today.AddDate(0, 0, i+1-days)
+		result[i] = model.APIWeekArray{Date: model.LocalDateTime{Time: date}, Count: counts[date.Format(time.DateOnly)]}
+	}
+	return result
 }
 
 func (s *Store) GetAPITodayCountArrayFromDaily(ctx context.Context) ([]model.APITodayArray, error) {

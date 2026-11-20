@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"time"
 
 	"github.com/zxz/helloapi/internal/httpx"
@@ -19,9 +20,14 @@ type StatRepository interface {
 	SaveAPILog(context.Context, int, *string, *string, *string, *string, int) error
 }
 
-type Stat struct{ repo StatRepository }
+type Stat struct {
+	repo            StatRepository
+	maxPayloadBytes int
+}
 
-func NewStat(store StatRepository) *Stat { return &Stat{repo: store} }
+func NewStat(store StatRepository, maxPayloadBytes int) *Stat {
+	return &Stat{repo: store, maxPayloadBytes: maxPayloadBytes}
+}
 
 func (s *Stat) LogAPI(ctx context.Context, body map[string]string) (response httpx.Response, failure error) {
 	defer func() {
@@ -92,14 +98,16 @@ func (s *Stat) LogAPI(ctx context.Context, body map[string]string) (response htt
 		}
 	}
 
-	header, payload := validJSON(body, "header"), validJSON(body, "body")
+	header, payload := s.logPayload(body["header"]), s.logPayload(body["body"])
 	return httpx.Success(), s.repo.SaveAPILog(ctx, apiID, optional(body, "ip"), header, payload, apiKey, userID)
 }
 
-func validJSON(body map[string]string, key string) *string {
-	value := body[key]
-	if !json.Valid([]byte(value)) {
+func (s *Stat) logPayload(value string) *string {
+	if s.maxPayloadBytes == 0 || !json.Valid([]byte(value)) {
 		return nil
+	}
+	if s.maxPayloadBytes > 0 && len(value) > s.maxPayloadBytes {
+		value = fmt.Sprintf(`{"truncated":true,"size":%d}`, len(value))
 	}
 	return &value
 }

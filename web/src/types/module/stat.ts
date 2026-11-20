@@ -24,6 +24,7 @@ export interface StatDashboard {
     apiWeekCount: StatValue
     apiMonthCount: StatValue
     apiWeekCountArray: ApiWeekCountItem[]
+    apiDailyCountArray: ApiWeekCountItem[]
     apiTodayCountArray: ApiTodayCountItem[]
 }
 

@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"slices"
 	"sync"
 	"time"
 
@@ -12,11 +13,14 @@ type DashboardRepository interface {
 	GetAPIUsageSummary(ctx context.Context) (*model.APIUsageSummary, error)
 	GetDashboardEntitySummary(ctx context.Context) (*model.DashboardEntitySummary, error)
 	GetAPITodayCountArrayFromDaily(ctx context.Context) ([]model.APITodayArray, error)
-	GetAPIWeekCountArrayFromDaily(ctx context.Context) ([]model.APIWeekArray, error)
+	GetAPIDailyCountArray(ctx context.Context, days int) ([]model.APIWeekArray, error)
 	GetAPIAllCount(ctx context.Context) (int64, error)
 }
 
-const cacheTTL = 30 * time.Second
+const (
+	cacheTTL       = 30 * time.Second
+	dailyTrendDays = 90
+)
 
 type cached[T any] struct {
 	mu      sync.Mutex
@@ -56,7 +60,10 @@ func (s *Dashboard) GetDashboard(ctx context.Context) (model.StatDashboard, erro
 }
 
 func (s *Dashboard) loadDashboard(ctx context.Context) (model.StatDashboard, error) {
-	var dashboard model.StatDashboard
+	dashboard := model.StatDashboard{
+		APIWeekCountArray:  []model.APIWeekArray{},
+		APIDailyCountArray: []model.APIWeekArray{},
+	}
 	usage, err := s.repo.GetAPIUsageSummary(ctx)
 	if err != nil {
 		return dashboard, err
@@ -79,12 +86,12 @@ func (s *Dashboard) loadDashboard(ctx context.Context) (model.StatDashboard, err
 	for len(rankings) < 7 {
 		rankings = append(rankings, model.APITodayArray{})
 	}
-	week, err := s.repo.GetAPIWeekCountArrayFromDaily(ctx)
+	daily, err := s.repo.GetAPIDailyCountArray(ctx, dailyTrendDays)
 	if err != nil {
 		return dashboard, err
 	}
-	if week == nil {
-		week = []model.APIWeekArray{}
+	if daily == nil {
+		daily = dashboard.APIDailyCountArray
 	}
 
 	return model.StatDashboard{
@@ -96,7 +103,8 @@ func (s *Dashboard) loadDashboard(ctx context.Context) (model.StatDashboard, err
 		APITodayCount:          model.StatValue{Count: usage.TodayCount, Change: usage.TodayChange},
 		APIWeekCount:           model.StatValue{Count: usage.WeekCount, Change: usage.WeekChange},
 		APIMonthCount:          model.StatValue{Count: usage.MonthCount, Change: usage.MonthChange},
-		APIWeekCountArray:      week,
+		APIWeekCountArray:      slices.Clone(daily[max(0, len(daily)-7):]),
+		APIDailyCountArray:     daily,
 		APITodayCountArray:     rankings,
 	}, nil
 }
