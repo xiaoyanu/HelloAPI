@@ -20,12 +20,12 @@ HelloAPI
 
 ## 技术栈
 
-- Spring Boot 4
+- Go 1.27（chi + sqlx）
 - Vue 3 + Vite
 
 ## 系统要求
 
-- Java 21+
+- Go 1.27+（仅自行编译时需要）
 - MySQL 5.7+
 
 ## 截图
@@ -43,8 +43,15 @@ https://api.zxz.ee
 ### 后端
 
 - 目录：`server`
-- 配置文件：`server/src/main/resources/application.yml`
-- 配置好后编译即可，或者将配置文件复制到编译好之后的同级目录，在外部进行配置文件修改
+- 配置文件：将 `server/config.example.yaml` 复制为 `config.yaml`，放在可执行文件同级目录后修改数据库等配置（也可用 `-config` 参数指定路径，或用 `HELLOAPI_DB_PASSWORD` 等环境变量覆盖）
+- 编译并运行
+  ```
+  cd server
+  go build -o helloapi ./cmd/helloapi
+  ./helloapi
+  ```
+- 首次启动会自动建表；已在使用旧版（Java）的数据库可直接接管，无需迁移数据，切换后用户需重新登录
+- 详细配置项与接口说明见 [server/README.md](./server/README.md)
 - 不想自己编译？
     - 直接前往 [releases](../../releases/latest) 下载编译好的
 

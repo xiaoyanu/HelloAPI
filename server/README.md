@@ -1,10 +1,10 @@
-# HelloAPI Go 后端
+# HelloAPI 后端
 
-使用 Go 1.27.x、chi、sqlx 和 MySQL 5.7+。沿用 Java 版数据库与前端的 `/api/v1` 接口。Java 到 Go 的迁移范围和验收要求见 [重写规划](../docs/go-rewrite-plan.md)。
+使用 Go 1.27.x、chi、sqlx 和 MySQL 5.7+。由原 Spring Boot（Java）版本重写而来，沿用其数据库与前端的 `/api/v1` 接口，可直接接管 Java 版正在使用的数据库。Java 到 Go 的迁移范围和验收要求见 [重写规划](../docs/go-rewrite-plan.md)。
 
 ## 构建与运行
 
-在 `server-go/` 目录运行。先在 MySQL 创建配置所指的数据库，再启动服务。
+在 `server/` 目录运行。先在 MySQL 创建配置所指的数据库，再启动服务。
 
 ```powershell
 Copy-Item config.example.yaml config.yaml
